@@ -7,6 +7,10 @@ on:
 env:
   BINARY_NAME: pg_pack
 
+permissions:
+    contents: write
+    packages: write
+
 jobs:
   releases-matrix:
     name: Release Go Binaries
@@ -22,11 +26,11 @@ jobs:
             goos: windows
     steps:
       - uses: actions/checkout@v3
-      - uses: wangyoucao577/go-release-action@v1.28
+      - uses: wangyoucao577/go-release-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          goversion: "https://dl.google.com/go/go1.21.4.linux-amd64.tar.gz"
+          goversion: "1.19"
           build_flags: -v
           binary_name: "${{ env.BINARY_NAME }}"
