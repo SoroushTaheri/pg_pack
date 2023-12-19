@@ -14,7 +14,10 @@ Comparison charts TBD.
 
 - [x] Implement brotli compression
 - [x] Setup GitHub Actions to release binaries
-- [ ] Fix compressed output filename template
+- [x] Fix compressed output filename template
+- [x] Pack SEQUENCES
+- [x] Pack FUNCTIONS
+- [x] Pack DOMAINS
 - [ ] Comparison charts (vs pg_dump) for README
 - [ ] Implement restore compressed
 
