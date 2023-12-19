@@ -609,7 +609,7 @@ func (m Manager) getFunctionStatements(schema string) (string, error) {
 		}
 
 		var stmt string
-		stmt += fmt.Sprintf("CREATE FUCNTION %s.%s(%s) RETURNS %s", Schema, Name, ArgumentTypes, ReturnType)
+		stmt += fmt.Sprintf("CREATE FUNCTION %s.%s(%s) RETURNS %s", Schema, Name, ArgumentTypes, ReturnType)
 		stmt += fmt.Sprintf("\n\tLANGUAGE %s %s %s", Language, Volatile, (map[bool]string{true: "STRICT", false: ""})[IsStrict])
 		stmt += fmt.Sprintf("\nAS $$\n%s\n$$", Body)
 
