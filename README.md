@@ -6,11 +6,11 @@ Pack your PostgreSQL databases quicker and more efficient with `pg_pack`. Compar
 
 _Note that restoring files compressed by `pg_pack` to the database is only possible via `pg_pack` itself and not other tools like `pg_restore` or `psql`._
 
-# Comparison
+## Comparison
 
 Comparison charts TBD.
 
-# TODO
+## TODO
 
 - [x] Implement brotli compression
 - [x] Setup GitHub Actions to release binaries
@@ -21,11 +21,11 @@ Comparison charts TBD.
 - [ ] Comparison charts (vs pg_dump) for README
 - [ ] Implement restore compressed
 
-# License
+## License
 
 Distributed under the MIT License. See [`LICENSE`](https://github.com/SoroushTaheri/pg_pack/blob/main/LICENSE) for more information.
 
-# Contact
+## Contact
 
 Soroush Taheri
 
