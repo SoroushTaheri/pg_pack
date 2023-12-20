@@ -21,9 +21,9 @@ Comparison charts TBD.
 - [x] Pack SEQUENCES
 - [x] Pack FUNCTIONS
 - [x] Pack DOMAINS
-- [x] Pack Types
-- [ ] Pack Aggregates
-- [ ] Pack Views
+- [x] Pack TYPES
+- [ ] Pack AGGREGATE FUNCTIONS
+- [ ] Pack VIEWS
 - [ ] Data-only mode
 - [ ] Schema-only mode
 - [ ] Implement restore compressed
