@@ -6,7 +6,10 @@ Pack your PostgreSQL databases quicker and more efficient with `pg_pack`. Compar
 
 ## Precautions
 
-- As of now, `pg_pack` only supports ENUM types. Support for other types are to be implemented.
+- `pg_pack` does not support the following SQL interfaces:
+  - Types (except for enums)
+  - Aggregate Functions
+  - Views
 - Restoring files compressed by `pg_pack` to the database is only possible via `pg_pack` itself and not other tools like `pg_restore` or `psql`.
 
 ## Comparison
