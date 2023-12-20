@@ -347,19 +347,25 @@ func (m Manager) getTables(schema string) ([]string, error) {
 }
 
 func (m Manager) getCreateTableStatement(tableName string, schema string) (string, error) {
+	// Query retrieves column metadata for the given table from the PostgreSQL
+	// information_schema and pg_catalog system tables. Joining the tables is to
+	// fetch some additional info like the namespace for user-defined types.
 	rows, err := m.Database.Query(`SELECT
-			column_name,
-			data_type,
-			is_nullable,
-			column_default,
-			character_maximum_length,
-			numeric_precision,
-			numeric_scale,
-			udt_name
-		FROM information_schema.columns
-		WHERE table_name=$1
-		AND table_schema=$2
-		ORDER BY ordinal_position;`, tableName, schema)
+			c.column_name,
+			c.data_type,
+			c.is_nullable,
+			c.column_default,
+			c.character_maximum_length,
+			c.numeric_precision,
+			c.numeric_scale,
+			c.udt_name, --type name (user-defined/array types)
+			n.nspname as type_schema --type schema
+		FROM information_schema.columns c
+		LEFT JOIN pg_catalog.pg_type t ON c.udt_name = t.typname --user-defined types
+		LEFT JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid
+		WHERE c.table_name = $1 AND c.table_schema = $2
+		ORDER BY c.ordinal_position;`,
+		tableName, schema)
 	if err != nil {
 		return "", err
 	}
@@ -367,9 +373,9 @@ func (m Manager) getCreateTableStatement(tableName string, schema string) (strin
 
 	columnDefs := make([]string, 0)
 	for rows.Next() {
-		var columnName, dataType, isNullable, columnDefault, udtName sql.NullString
+		var columnName, dataType, isNullable, columnDefault, udtName, typeSchema sql.NullString
 		var characterMaximumLength, numericPrecision, numericScale sql.NullInt64
-		err := rows.Scan(&columnName, &dataType, &isNullable, &columnDefault, &characterMaximumLength, &numericPrecision, &numericScale, &udtName)
+		err := rows.Scan(&columnName, &dataType, &isNullable, &columnDefault, &characterMaximumLength, &numericPrecision, &numericScale, &udtName, &typeSchema)
 		if err != nil {
 			return "", err
 		}
@@ -380,9 +386,18 @@ func (m Manager) getCreateTableStatement(tableName string, schema string) (strin
 
 		columnDef := columnName.String
 
-		if udtName.Valid && strings.HasPrefix(udtName.String, "_") {
+		if !udtName.Valid {
+			return "", fmt.Errorf("invalid udtName for column %s", columnName.String)
+		}
+
+		if strings.HasPrefix(udtName.String, "_") {
+			// Array type. example: _text
 			columnDef += " " + udtName.String[1:] + "[]"
+		} else if dataType.String == "USER-DEFINED" && typeSchema.Valid && typeSchema.String != "" {
+			// User-defined type. example: public.text
+			columnDef += " " + typeSchema.String + "." + udtName.String
 		} else {
+			// Standard pg_catalog type. example: int64
 			columnDef += " " + dataType.String
 		}
 
