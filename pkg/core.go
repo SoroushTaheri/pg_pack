@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -56,7 +57,7 @@ func NewManager(outputFile *string, connData *ConnectionCreds, options *Options)
 		sslMode = "enable"
 	}
 
-	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s&TimeZone=UTC", connData.Username, connData.Password, connData.Host, connData.Port, connData.Database, sslMode))
+	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s&TimeZone=UTC", url.QueryEscape(connData.Username), url.QueryEscape(connData.Password), connData.Host, connData.Port, connData.Database, sslMode))
 	if err != nil {
 		return Manager{}, fmt.Errorf("error while connecting to the database: %v", err)
 	}
