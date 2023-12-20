@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -445,7 +446,19 @@ func (m Manager) getCreateTableStatement(tableName string, schema string) (strin
 		}
 
 		if columnDefault.Valid {
-			columnDef += " DEFAULT " + columnDefault.String
+			defaultValue := columnDefault.String
+			if strings.Contains(defaultValue, "nextval(") {
+				seqPattern := `nextval\('([^']*)'::regclass\)`
+				re := regexp.MustCompile(seqPattern)
+				defaultValue = re.ReplaceAllStringFunc(defaultValue, func(match string) string {
+					seqName := re.ReplaceAllString(match, "$1")
+					if !strings.Contains(seqName, ".") {
+						seqName = schema + "." + seqName
+					}
+					return fmt.Sprintf("nextval('%s'::regclass)", seqName)
+				})
+			}
+			columnDef += " DEFAULT " + defaultValue
 		}
 
 		columnDefs = append(columnDefs, columnDef)
@@ -618,6 +631,7 @@ func (m Manager) getFunctionStatements(schema string) (string, error) {
 			JOIN pg_catalog.pg_language l ON l.oid = p.prolang
 			WHERE pg_catalog.pg_function_is_visible(p.oid)
 			AND n.nspname = $1
+			AND p.prokind = 'f' -- Only select normal functions
 			ORDER BY schema_name, function_name;`
 	rows, err := m.Database.Query(query, schema)
 	if err != nil {
@@ -896,7 +910,7 @@ func (m Manager) broadcastTableRecordsINSERT(tableName string, schema string, ch
 						// TODO: This is a faulty way of checking whether 't' is of type 'time' or 'date'
 						if h+m+d != 0 {
 							// (likely) time
-							insertStmt += fmt.Sprintf("'%s'", strValue)
+							insertStmt += fmt.Sprintf("'%s'", t.Format("2006-01-02 15:04:05"))
 						} else {
 							// date
 							insertStmt += fmt.Sprintf("'%s'", t.Format("2006-01-02"))
