@@ -130,8 +130,20 @@ func (m Manager) Pack() error {
 		return fmt.Errorf("error while creating output file: %v", err)
 	}
 
+	outputFile.WriteString("-- This file was created by pg_pack. DO NOT MODIFY.\n\n")
+
+	outputFile.WriteString("SET client_encoding = 'UTF8';\n")
+	outputFile.WriteString("SET statement_timeout = 0;\n")
+	outputFile.WriteString("SET lock_timeout = 0;\n")
+	outputFile.WriteString("SET idle_in_transaction_session_timeout = 0;\n")
+	outputFile.WriteString("SET standard_conforming_strings = on;\n")
+	outputFile.WriteString("SET check_function_bodies = false;\n")
+	outputFile.WriteString("SET xmloption = content;\n")
+	outputFile.WriteString("SET client_min_messages = warning;\n")
+	outputFile.WriteString("SET row_security = off;\n")
+	outputFile.WriteString("SELECT pg_catalog.set_config('search_path', '', false);\n")
+
 	// Create tables
-	_, err = outputFile.WriteString("\n-- START OF CREATING TABLES\n")
 	schemas, err := m.getSchemas()
 	if err != nil {
 		return fmt.Errorf("error while fetching schemas: %v", err)
@@ -155,6 +167,15 @@ func (m Manager) Pack() error {
 			}
 		}
 		_, err = outputFile.WriteString("-- END OF DROPPING TABLES\n")
+
+		// Types
+		_, err = outputFile.WriteString("\n-- START OF CREATING TYPES\n")
+		typeStmt, err := m.getCreateTypeStatements(schema) // Only supports Enums for now
+		if err != nil {
+			return fmt.Errorf("error while constructing CREATE TYPE statement: %v", err)
+		}
+		_, err = outputFile.WriteString(typeStmt + "\n")
+		_, err = outputFile.WriteString("-- END OF CREATING TYPES\n")
 
 		// Domains
 		_, err = outputFile.WriteString("\n-- START OF DOMAINS\n")
@@ -195,6 +216,7 @@ func (m Manager) Pack() error {
 		}
 		_, err = outputFile.WriteString("-- END OF SEQUENCES\n")
 
+		_, err = outputFile.WriteString("\n-- START OF CREATING TABLES\n")
 		for _, table := range tables {
 			createTableStmt, err := m.getCreateTableStatement(table, schema)
 			if err != nil {
@@ -632,9 +654,14 @@ func (m Manager) getFunctionStatements(schema string) (string, error) {
 		}
 
 		var stmt string
+		Separator := "$_$"
+
+		if Language == "plpgsql" {
+			Separator = "$$"
+		}
 		stmt += fmt.Sprintf("CREATE FUNCTION %s.%s(%s) RETURNS %s", Schema, Name, ArgumentTypes, ReturnType)
 		stmt += fmt.Sprintf("\n\tLANGUAGE %s %s %s", Language, Volatile, (map[bool]string{true: "STRICT", false: ""})[IsStrict])
-		stmt += fmt.Sprintf("\nAS $$\n%s\n$$", Body)
+		stmt += fmt.Sprintf("\nAS %s\n%s\n%s", Separator, Body, Separator)
 
 		stmt += ";\n"
 		stmt += fmt.Sprintf("\nALTER FUNCTION %s.%s(%s) OWNER TO %s;", Schema, Name, ArgumentTypes, Owner)
@@ -719,6 +746,94 @@ func (m Manager) getSequenceStatements(schema string) (string, error) {
 
 	result := strings.Join(sequenceStatements, "\n\n")
 	return result, nil
+}
+
+func (m Manager) getCreateTypeStatements(schema string) (string, error) {
+	query := `
+                SELECT
+                        t.typname,
+                        n.nspname,
+                        pg_catalog.pg_get_userbyid(t.typowner) as owner,
+                        t.typtype
+                FROM
+                        pg_catalog.pg_type t
+                        LEFT JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+                WHERE
+                        (n.nspname = $1 OR $1 = '')
+                        AND t.typtype = 'e' -- Temporarily, select only enum types
+						-- TODO: Add support for other types (range, composite, etc)
+                        AND t.typisdefined = true;
+        `
+	rows, err := m.Database.Query(query, schema)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	typeDefinitions := make([]string, 0)
+	for rows.Next() {
+		var typeName, typeSchema, typeOwner, typtype string
+		err := rows.Scan(&typeName, &typeSchema, &typeOwner, &typtype)
+		if err != nil {
+			return "", err
+		}
+
+		var createTypeStmt string
+		switch typtype {
+		case "e": // Enum type
+			createTypeStmt, err = m.getCreateEnumTypeStatement(typeName, typeSchema)
+			if err != nil {
+				return "", err
+			}
+
+		default:
+			continue
+		}
+
+		typeDefinitions = append(typeDefinitions, createTypeStmt)
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return strings.Join(typeDefinitions, "\n"), nil
+}
+
+func (m Manager) getCreateEnumTypeStatement(typeName string, schema string) (string, error) {
+	query := `
+                SELECT
+                        e.enumlabel
+                FROM
+                        pg_catalog.pg_enum e
+                        JOIN pg_catalog.pg_type t ON e.enumtypid = t.oid
+                        JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+                WHERE
+                        t.typname = $1 AND n.nspname = $2
+                ORDER BY
+                        e.enumsortorder;
+        `
+	rows, err := m.Database.Query(query, typeName, schema)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	labels := make([]string, 0)
+	for rows.Next() {
+		var label string
+		if err := rows.Scan(&label); err != nil {
+			return "", err
+		}
+		labels = append(labels, fmt.Sprintf("\t'%s'", label))
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	enumLabels := strings.Join(labels, ", \n")
+	createTypeStmt := fmt.Sprintf("CREATE TYPE %s.%s AS ENUM (\n%s\n);", schema, typeName, enumLabels)
+	return createTypeStmt, nil
 }
 
 func (m Manager) broadcastTableRecordsINSERT(tableName string, schema string, ch chan string) error {
@@ -863,7 +978,7 @@ func (m Manager) broadcastTableRecordsCOPY(tableName string, schema string, ch c
 						// TODO: This is a faulty way of checking whether 't' is of type 'time' or 'date'
 						if h+m+d != 0 {
 							// (likely) time
-							valueParams = append(valueParams, fmt.Sprintf("'%s'", strValue))
+							valueParams = append(valueParams, fmt.Sprintf("'%s'", t.Format("2006-01-02 15:04:05")))
 						} else {
 							// date
 							valueParams = append(valueParams, fmt.Sprintf("'%s'", t.Format("2006-01-02")))
@@ -881,6 +996,8 @@ func (m Manager) broadcastTableRecordsCOPY(tableName string, schema string, ch c
 			ch <- strings.Join(valueParams, "\t")
 			ch <- "\n"
 		}
+
+		ch <- "\\.\n"
 
 	}()
 	return nil
