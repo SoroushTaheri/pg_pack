@@ -18,8 +18,10 @@ Comparison charts TBD.
 - [x] Pack SEQUENCES
 - [x] Pack FUNCTIONS
 - [x] Pack DOMAINS
-- [ ] Comparison charts (vs pg_dump) for README
+- [ ] Data-only mode
+- [ ] Schema-only mode
 - [ ] Implement restore compressed
+- [ ] Comparison charts (vs pg_dump) for README
 
 ## License
 
