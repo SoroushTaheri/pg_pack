@@ -4,7 +4,10 @@
 
 Pack your PostgreSQL databases quicker and more efficient with `pg_pack`. Compared to `pg_dump`, It performs up to 3x faster and uses [brotli compression](https://github.com/google/brotli) to provide up to 20x lighter data packages.
 
-_Note that restoring files compressed by `pg_pack` to the database is only possible via `pg_pack` itself and not other tools like `pg_restore` or `psql`._
+## Precautions
+
+- As of now, `pg_pack` only supports ENUM types. Support for other types are to be implemented.
+- Restoring files compressed by `pg_pack` to the database is only possible via `pg_pack` itself and not other tools like `pg_restore` or `psql`.
 
 ## Comparison
 
@@ -18,6 +21,9 @@ Comparison charts TBD.
 - [x] Pack SEQUENCES
 - [x] Pack FUNCTIONS
 - [x] Pack DOMAINS
+- [x] Pack Types
+- [ ] Pack Aggregates
+- [ ] Pack Views
 - [ ] Data-only mode
 - [ ] Schema-only mode
 - [ ] Implement restore compressed
