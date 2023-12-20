@@ -292,6 +292,11 @@ func (m Manager) Pack() error {
 	// Compress
 	if m.Options.Compress {
 		fileNameSegments := strings.Split(*m.OutputFilename, ".")
+
+		if len (fileNameSegments) == 1 {
+			fileNameSegments = append(fileNameSegments, "")
+		}
+		
 		compOutFilename := fmt.Sprintf("%s.pack", strings.Join(fileNameSegments[0:len(fileNameSegments)-1], "."))
 		compOutFile, _ := os.Create(compOutFilename)
 		defer compOutFile.Close()
