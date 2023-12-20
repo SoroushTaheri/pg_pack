@@ -354,7 +354,8 @@ func (m Manager) getCreateTableStatement(tableName string, schema string) (strin
 			column_default,
 			character_maximum_length,
 			numeric_precision,
-			numeric_scale
+			numeric_scale,
+			udt_name
 		FROM information_schema.columns
 		WHERE table_name=$1
 		AND table_schema=$2
@@ -366,9 +367,9 @@ func (m Manager) getCreateTableStatement(tableName string, schema string) (strin
 
 	columnDefs := make([]string, 0)
 	for rows.Next() {
-		var columnName, dataType, isNullable, columnDefault sql.NullString
+		var columnName, dataType, isNullable, columnDefault, udtName sql.NullString
 		var characterMaximumLength, numericPrecision, numericScale sql.NullInt64
-		err := rows.Scan(&columnName, &dataType, &isNullable, &columnDefault, &characterMaximumLength, &numericPrecision, &numericScale)
+		err := rows.Scan(&columnName, &dataType, &isNullable, &columnDefault, &characterMaximumLength, &numericPrecision, &numericScale, &udtName)
 		if err != nil {
 			return "", err
 		}
@@ -376,7 +377,14 @@ func (m Manager) getCreateTableStatement(tableName string, schema string) (strin
 		if !(columnName.Valid && dataType.Valid) {
 			continue
 		}
-		columnDef := columnName.String + " " + dataType.String
+
+		columnDef := columnName.String
+
+		if udtName.Valid && strings.HasPrefix(udtName.String, "_") {
+			columnDef += " " + udtName.String[1:] + "[]"
+		} else {
+			columnDef += " " + dataType.String
+		}
 
 		precisionTypes := map[string]bool{
 			"numeric":   true,
